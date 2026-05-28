@@ -1,5 +1,9 @@
 # gs_kuro_cos
 
+<p align="center">
+  <img src="./ICON.png" width="160" alt="插件 ICON">
+</p>
+
 GSCore / GsUID 版鸣潮库街区 COS 搬运插件，按 AstrBot 版同步改写。
 
 功能：从鸣潮库街区 COS 板块随机获取帖子，只提取帖子正文里的 COS 图片/视频，然后由机器人发送到当前聊天。
