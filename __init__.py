@@ -24,7 +24,7 @@ from gsuid_core.sv import Plugins, SV
 from .kuro_cos_config import KuroCosConfig
 
 
-__version__ = '0.2.2'
+__version__ = '0.2.3'
 
 Plugins(name='gs_kuro_cos', force_prefix=['ww', 'zs'], allow_empty_prefix=False)
 sv = SV('库街区COS/同人')
