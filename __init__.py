@@ -1,22 +1,15 @@
 from __future__ import annotations
 
 import asyncio
-import base64
-import hashlib
-import hmac
 import html
-import json
-import os
 import random
 import re
-import shutil
 import time
 from collections import deque
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Iterable
-from urllib.parse import quote, urlparse
-from uuid import uuid4
+from urllib.parse import urlparse
 
 import httpx
 
@@ -28,6 +21,8 @@ from gsuid_core.sv import Plugins, SV
 
 from .kuro_cos_config import KuroCosConfig
 
+
+__version__ = '0.2.0'
 
 Plugins(name='gs_kuro_cos', force_prefix=['ww', 'zs'], allow_empty_prefix=False)
 sv = SV('库街区COS/同人')
@@ -45,8 +40,6 @@ DEV_CODE = 'H0O9l04JUG341k5UpUTMNpnGawC5Qt9p'
 DISTINCT_ID = '195be91535f592-0915a368d4173f-4c657b58-1327104-195be9153601740'
 
 IMAGE_EXTENSIONS = {'.jpg', '.jpeg', '.png', '.gif', '.webp', '.bmp'}
-VIDEO_EXTENSIONS = {'.mp4', '.mov', '.m4v', '.webm', '.avi', '.flv', '.mkv', '.m3u8'}
-MEDIA_EXTENSIONS = IMAGE_EXTENSIONS | VIDEO_EXTENSIONS
 KURO_MEDIA_HOSTS = ('kurobbs.com', 'kurogame.com', 'aki-game.com')
 URL_RE = re.compile(r"https?://[^\s'\"<>，。！？、）)\]}]+", re.IGNORECASE)
 
@@ -85,10 +78,8 @@ FETCH_LOCK = asyncio.Semaphore(1)
 
 
 @dataclass(frozen=True, slots=True)
-class MediaItem:
+class ImageItem:
     url: str
-    kind: str
-    video_id: str = ''
 
 
 @dataclass(frozen=True, slots=True)
@@ -98,7 +89,7 @@ class KuroPost:
     summary: str
     author: str
     url: str
-    media: tuple[MediaItem, ...]
+    images: tuple[ImageItem, ...]
     label: str
 
 
@@ -109,7 +100,6 @@ class CommandSpec:
     label: str
     forum_id: int
     game_id: int
-    video_only: bool = False
     strict_cos: bool = False
     search_suffixes: tuple[str, ...] = ()
 
@@ -121,15 +111,12 @@ class ParsedCommand:
 
 
 COMMANDS: tuple[CommandSpec, ...] = (
-    CommandSpec('ww', 'cos视频', '鸣潮 COS', 17, 3, True, True, SEARCH_KEYWORD_SUFFIXES),
-    CommandSpec('ww', 'cos', '鸣潮 COS', 17, 3, False, True, SEARCH_KEYWORD_SUFFIXES),
-    CommandSpec('ww', '同人视频', '鸣潮同人', 11, 3, True),
+    CommandSpec('ww', 'cos', '鸣潮 COS', 17, 3, True, SEARCH_KEYWORD_SUFFIXES),
     CommandSpec('ww', '同人', '鸣潮同人', 11, 3),
-    CommandSpec('zs', '同人视频', '战双同人', 5, 2, True),
     CommandSpec('zs', '同人', '战双同人', 5, 2),
 )
 COMMANDS_BY_LENGTH = tuple(sorted(COMMANDS, key=lambda item: len(item.command), reverse=True))
-COMMAND_PATTERN = r'\s*(?:cos视频|cos|同人视频|同人)(?:\s+.+)?'
+COMMAND_PATTERN = r'\s*(?:cos|同人)(?:\s+.+)?'
 
 
 def _cfg(key: str, default: Any = None) -> Any:
@@ -177,10 +164,6 @@ def _cfg_float(key: str, default: float, minimum: float | None = None, maximum: 
     if maximum is not None:
         value = min(maximum, value)
     return value
-
-
-def _cfg_str(key: str, default: str = '') -> str:
-    return str(_cfg(key, default) or '').strip()
 
 
 def _debug(message: str) -> None:
@@ -239,7 +222,7 @@ def _is_cos_search_result(node: dict[str, Any], query: str) -> bool:
         return False
     if text_has_negative and not title_has_cos:
         return False
-    if not title_has_cos and not _extract_post_media(node):
+    if not title_has_cos and not _extract_post_images(node):
         return False
     return True
 
@@ -272,16 +255,11 @@ def _is_kuro_media_url(url: str) -> bool:
     return any(host == key or host.endswith(f'.{key}') for key in KURO_MEDIA_HOSTS)
 
 
-def _clean_video_id(value: Any) -> str:
-    video_id = str(value or '').strip()
-    return video_id if re.fullmatch(r'[A-Za-z0-9_-]{8,128}', video_id) else ''
-
-
-def _dedupe_media(items: Iterable[MediaItem]) -> tuple[MediaItem, ...]:
-    result: list[MediaItem] = []
+def _dedupe_images(items: Iterable[ImageItem]) -> tuple[ImageItem, ...]:
+    result: list[ImageItem] = []
     seen: set[str] = set()
     for item in items:
-        key = item.video_id or item.url.split('?', 1)[0]
+        key = item.url.split('?', 1)[0]
         if not key or key in seen:
             continue
         seen.add(key)
@@ -289,29 +267,16 @@ def _dedupe_media(items: Iterable[MediaItem]) -> tuple[MediaItem, ...]:
     return tuple(result)
 
 
-def _is_video_media(item: MediaItem) -> bool:
-    return item.kind == 'video' or bool(item.video_id)
-
-
-def _append_media_url(media: list[MediaItem], raw_url: Any, forced_kind: str | None = None) -> None:
+def _append_image_url(images: list[ImageItem], raw_url: Any) -> None:
     url = _normalize_url(raw_url)
     if not url:
         return
     suffix = _url_suffix(url)
-    if not _is_kuro_media_url(url) and suffix not in MEDIA_EXTENSIONS:
+    if suffix and suffix not in IMAGE_EXTENSIONS:
         return
-    if forced_kind == 'image' and suffix in VIDEO_EXTENSIONS:
+    if not suffix and not _is_kuro_media_url(url):
         return
-    if forced_kind == 'video' and suffix in IMAGE_EXTENSIONS:
-        return
-    kind = forced_kind
-    if kind is None:
-        if suffix in IMAGE_EXTENSIONS:
-            kind = 'image'
-        elif suffix in VIDEO_EXTENSIONS:
-            kind = 'video'
-    if kind:
-        media.append(MediaItem(url, kind))
+    images.append(ImageItem(url))
 
 
 def _extract_urls_from_text(value: Any) -> list[str]:
@@ -320,60 +285,50 @@ def _extract_urls_from_text(value: Any) -> list[str]:
     return [match.rstrip('.,;:!?，。；：！？、') for match in URL_RE.findall(value)]
 
 
-def _extract_from_media_container(value: Any, forced_kind: str | None = None) -> list[MediaItem]:
-    media: list[MediaItem] = []
+def _extract_from_image_container(value: Any) -> list[ImageItem]:
+    images: list[ImageItem] = []
 
     def visit(item: Any) -> None:
         if isinstance(item, str):
             if item.startswith(('http://', 'https://')):
-                _append_media_url(media, item, forced_kind)
+                _append_image_url(images, item)
             else:
                 for url in _extract_urls_from_text(item):
-                    _append_media_url(media, url, forced_kind)
+                    _append_image_url(images, url)
             return
         if isinstance(item, list):
             for child in item:
                 visit(child)
             return
         if isinstance(item, dict):
-            if forced_kind in (None, 'video'):
-                video_id = _clean_video_id(item.get('videoId') or item.get('video_id') or item.get('vodId'))
-                if video_id:
-                    media.append(MediaItem('', 'video', video_id))
-            for key in ('url', 'imgUrl', 'imageUrl', 'picUrl', 'videoUrl', 'playUrl', 'coverUrl', 'resourceUrl', 'src', 'path'):
+            for key in ('url', 'imgUrl', 'imageUrl', 'picUrl', 'coverUrl', 'resourceUrl', 'src', 'path'):
                 if key in item:
-                    _append_media_url(media, item.get(key), forced_kind)
-            for key in ('urls', 'images', 'imgs', 'videos', 'resources', 'content', 'list'):
+                    _append_image_url(images, item.get(key))
+            for key in ('urls', 'images', 'imgs', 'resources', 'content', 'list'):
                 if key in item:
                     visit(item.get(key))
 
     visit(value)
-    return media
+    return images
 
 
-def _extract_post_media(node: dict[str, Any]) -> tuple[MediaItem, ...]:
-    media: list[MediaItem] = []
+def _extract_post_images(node: dict[str, Any]) -> tuple[ImageItem, ...]:
+    images: list[ImageItem] = []
     for key in ('imgContent', 'imageContent', 'images', 'imgs', 'picList', 'imageList'):
         if key in node:
-            media.extend(_extract_from_media_container(node.get(key), 'image'))
-    for key in ('videoContent', 'video', 'videos', 'videoInfo', 'videoList', 'videoUrl'):
-        if key in node:
-            media.extend(_extract_from_media_container(node.get(key), 'video'))
-    video_id = _clean_video_id(node.get('videoId') or node.get('video_id') or node.get('vodId'))
-    if video_id:
-        media.append(MediaItem('', 'video', video_id))
+            images.extend(_extract_from_image_container(node.get(key)))
     for key in ('postContent', 'content', 'summary', 'desc', 'postDetail', 'richContent'):
         for url in _extract_urls_from_text(node.get(key)):
-            _append_media_url(media, url)
-    return _dedupe_media(media)
+            _append_image_url(images, url)
+    return _dedupe_images(images)
 
 
-def _extract_cover_media(node: dict[str, Any]) -> tuple[MediaItem, ...]:
-    media: list[MediaItem] = []
+def _extract_cover_images(node: dict[str, Any]) -> tuple[ImageItem, ...]:
+    images: list[ImageItem] = []
     for key in ('coverImages', 'coverImage', 'cover', 'coverUrl', 'postCover', 'topicCover'):
         if key in node:
-            media.extend(_extract_from_media_container(node.get(key), 'image'))
-    return _dedupe_media(media)
+            images.extend(_extract_from_image_container(node.get(key)))
+    return _dedupe_images(images)
 
 
 def _post_from_node(node: dict[str, Any], spec: CommandSpec, allow_cover_fallback: bool) -> KuroPost | None:
@@ -391,16 +346,16 @@ def _post_from_node(node: dict[str, Any], spec: CommandSpec, allow_cover_fallbac
     if isinstance(author_node, dict):
         author = _clean_text(author_node.get('userName') or author_node.get('nickname') or author_node.get('name') or '', 40)
     author = author or _clean_text(node.get('userName') or node.get('nickname') or detail.get('userName') or '库街区用户', 40)
-    media = _extract_post_media(node)
-    if not media and detail:
-        media = _extract_post_media(detail)
-    if not media and allow_cover_fallback:
-        media = _extract_cover_media(node)
-    if not media:
+    images = _extract_post_images(node)
+    if not images and detail:
+        images = _extract_post_images(detail)
+    if not images and allow_cover_fallback:
+        images = _extract_cover_images(node)
+    if not images:
         return None
     game_path = 'pns' if spec.game_id == 2 else 'mc'
     url = f'https://www.kurobbs.com/{game_path}/post/{post_id}' if post_id else 'https://www.kurobbs.com/'
-    return KuroPost(post_id, title, summary, author, url, media, spec.label)
+    return KuroPost(post_id, title, summary, author, url, images, spec.label)
 
 
 def _extract_post_list(payload: Any) -> list[dict[str, Any]]:
@@ -417,15 +372,6 @@ def _extract_post_list(payload: Any) -> list[dict[str, Any]]:
                 if key in current:
                     queue.append(current[key])
     return []
-
-
-def _post_with_media_filter(post: KuroPost, video_only: bool) -> KuroPost | None:
-    media = tuple(item for item in post.media if _is_video_media(item)) if video_only else post.media
-    if not media:
-        return None
-    if media == post.media:
-        return post
-    return KuroPost(post.post_id, post.title, post.summary, post.author, post.url, media, post.label)
 
 
 def _split_prefix_and_body(text: Any) -> tuple[str, str]:
@@ -463,9 +409,9 @@ def _unknown_command_text(text: Any) -> str | None:
         return None
     command = body.split(' ', 1)[0]
     if prefix == 'zs' and command.startswith('cos'):
-        return '战双前缀 zs 目前支持：zs同人、zs同人视频。'
+        return '战双前缀 zs 目前支持：zs同人。'
     if prefix == 'ww' and command.startswith(('cos', '同人')):
-        return '鸣潮前缀 ww 支持：wwcos、wwcos视频、ww同人、ww同人视频。'
+        return '鸣潮前缀 ww 支持：wwcos、ww同人。'
     return None
 
 
@@ -524,7 +470,6 @@ async def _fetch_random_posts(spec: CommandSpec) -> list[KuroPost]:
         accepted = 0
         for node in nodes:
             post = _post_from_node(node, spec, False)
-            post = _post_with_media_filter(post, spec.video_only) if post else None
             if not post:
                 continue
             key = post.post_id or post.url or post.title
@@ -606,8 +551,7 @@ async def _fetch_search_posts(spec: CommandSpec, keyword: str) -> list[KuroPost]
                     continue
             elif not _query_matches(node, keyword):
                 continue
-            post = _post_from_node(node, spec, not spec.video_only)
-            post = _post_with_media_filter(post, spec.video_only) if post else None
+            post = _post_from_node(node, spec, True)
             if not post:
                 continue
             key = post.post_id or post.url or post.title
@@ -650,129 +594,21 @@ async def _fetch_search_posts(spec: CommandSpec, keyword: str) -> list[KuroPost]
     return strict_posts or relaxed_posts or recent_posts
 
 
-async def _resolve_video(media: MediaItem) -> MediaItem:
-    if media.url or not _is_video_media(media) or not media.video_id:
-        return media
-    play_url = await _fetch_video_play_url(media.video_id)
-    return MediaItem(play_url, 'video', media.video_id) if play_url else media
-
-
-async def _fetch_video_play_url(video_id: str) -> str | None:
-    video_id = _clean_video_id(video_id)
-    if not video_id:
-        return None
-    try:
-        timeout = _cfg_float('request_timeout', 12.0, 1.0)
-        async with httpx.AsyncClient(timeout=timeout, follow_redirects=True, headers=_headers('3.0.3')) as client:
-            response = await client.post(_api_url('/forum/video/refreshPlayCode'), data={'videoId': video_id})
-            response.raise_for_status()
-            play_auth = response.json().get('data', {}).get('playAuth')
-            play_url = await _fetch_aliyun_play_url(play_auth, video_id, client)
-            if play_url:
-                _debug(f'视频解析成功 videoId={video_id} suffix={_url_suffix(play_url)}')
-            return play_url
-    except Exception as exc:
-        _debug(f'视频解析失败 videoId={video_id} error={exc!r}')
-        return None
-
-
-async def _fetch_aliyun_play_url(play_auth: Any, video_id: str, client: httpx.AsyncClient) -> str | None:
-    payload = _decode_play_auth(play_auth)
-    access_key_id = str(payload.get('AccessKeyId') or '')
-    access_key_secret = str(payload.get('AccessKeySecret') or '')
-    security_token = str(payload.get('SecurityToken') or '')
-    auth_info = payload.get('AuthInfo')
-    region = str(payload.get('Region') or 'cn-shanghai')
-    if not access_key_id or not access_key_secret or not security_token or not auth_info:
-        return None
-    params: dict[str, Any] = {
-        'AccessKeyId': access_key_id,
-        'Action': 'GetPlayInfo',
-        'AuthInfo': auth_info,
-        'AuthTimeout': '7200',
-        'Channel': 'HTML5',
-        'Definition': 'FD,LD,SD,HD',
-        'Format': 'JSON',
-        'Formats': '',
-        'PlayConfig': '{}',
-        'PlayerVersion': '2.29.2',
-        'Rand': str(uuid4()),
-        'ReAuthInfo': '{}',
-        'SecurityToken': security_token,
-        'SignatureMethod': 'HMAC-SHA1',
-        'SignatureNonce': str(uuid4()),
-        'SignatureVersion': '1.0',
-        'StreamType': 'video',
-        'Version': '2017-03-21',
-        'VideoId': video_id,
-    }
-    params['Signature'] = _aliyun_signature(params, access_key_secret)
-    response = await client.get(f'https://vod.{region}.aliyuncs.com/', params=params)
-    response.raise_for_status()
-    return _select_play_url(response.json().get('PlayInfoList', {}))
-
-
-def _decode_play_auth(play_auth: Any) -> dict[str, Any]:
-    if not isinstance(play_auth, str) or not play_auth.strip():
-        return {}
-    try:
-        raw = play_auth.strip()
-        raw += '=' * (-len(raw) % 4)
-        payload = json.loads(base64.b64decode(raw).decode('utf-8'))
-        return payload if isinstance(payload, dict) else {}
-    except Exception:
-        return {}
-
-
-def _aliyun_percent_encode(value: Any) -> str:
-    return quote(str(value), safe='-_.~')
-
-
-def _aliyun_signature(params: dict[str, Any], access_key_secret: str) -> str:
-    canonical_query = '&'.join(f'{_aliyun_percent_encode(key)}={_aliyun_percent_encode(params[key])}' for key in sorted(params))
-    string_to_sign = f'GET&%2F&{_aliyun_percent_encode(canonical_query)}'
-    digest = hmac.new(f'{access_key_secret}&'.encode('utf-8'), string_to_sign.encode('utf-8'), hashlib.sha1).digest()
-    return base64.b64encode(digest).decode('ascii')
-
-
-def _select_play_url(play_info_list: Any) -> str | None:
-    play_infos = play_info_list.get('PlayInfo') if isinstance(play_info_list, dict) else play_info_list
-    if not isinstance(play_infos, list):
-        return None
-    candidates = [item for item in play_infos if isinstance(item, dict) and item.get('PlayURL')]
-    if not candidates:
-        return None
-    preferred = _cfg_str('video_definition', 'HD').upper() or 'HD'
-    for definition in list(dict.fromkeys([preferred, 'HD', 'SD', 'LD', 'FD'])):
-        matches = [item for item in candidates if str(item.get('Definition') or '').upper() == definition]
-        for suffix in ('.mp4', '.m3u8'):
-            for item in matches:
-                play_url = str(item.get('PlayURL') or '')
-                if _url_suffix(play_url) == suffix:
-                    return play_url
-        if matches:
-            return str(matches[0].get('PlayURL'))
-    return str(candidates[0].get('PlayURL'))
-
-
-def _select_post(posts: list[KuroPost], video_only: bool) -> KuroPost | None:
+def _select_post(posts: list[KuroPost]) -> KuroPost | None:
     fresh: list[KuroPost] = []
     recent: list[KuroPost] = []
     for post in posts:
-        filtered = _post_with_media_filter(post, video_only)
-        if not filtered:
-            continue
-        key = filtered.post_id or filtered.url or filtered.title
-        (recent if key in RECENT_POST_IDS else fresh).append(filtered)
+        key = post.post_id or post.url or post.title
+        (recent if key in RECENT_POST_IDS else fresh).append(post)
     candidates = fresh or recent
     random.shuffle(candidates)
     if not candidates:
         return None
     post = candidates[0]
-    media = list(post.media)
-    random.shuffle(media)
-    _debug(f'候选帖子 label={post.label} post_id={post.post_id} video_only={video_only} media={len(media)}')
-    return KuroPost(post.post_id, post.title, post.summary, post.author, post.url, tuple(media), post.label)
+    images = list(post.images)
+    random.shuffle(images)
+    _debug(f'候选帖子 label={post.label} post_id={post.post_id} images={len(images)}')
+    return KuroPost(post.post_id, post.title, post.summary, post.author, post.url, tuple(images), post.label)
 
 
 def _remember_post(post: KuroPost) -> None:
@@ -788,118 +624,57 @@ def _post_text(post: KuroPost) -> str:
     return '\n'.join(part for part in parts if part)
 
 
-def _safe_media_target(media: MediaItem, post_id: str, index: int) -> Path:
-    suffix = _url_suffix(media.url)
-    if media.kind == 'video' and suffix == '.m3u8':
-        suffix = '.mp4'
-    if suffix not in MEDIA_EXTENSIONS:
-        suffix = '.jpg' if media.kind == 'image' else '.mp4'
+def _safe_image_target(image: ImageItem, post_id: str, index: int) -> Path:
+    suffix = _url_suffix(image.url)
+    if suffix not in IMAGE_EXTENSIONS:
+        suffix = '.jpg'
     safe_post_id = re.sub(r'[^a-zA-Z0-9_.-]+', '_', post_id or 'post')[:80] or 'post'
     target_dir = MEDIA_DIR / time.strftime('%Y%m%d_%H%M%S')
     target_dir.mkdir(parents=True, exist_ok=True)
     return target_dir / f'{safe_post_id}_{index}_{random.randint(1000, 9999)}{suffix}'
 
 
-async def _download_media(media: MediaItem, post_id: str, index: int) -> str | None:
-    if not media.url:
+async def _download_image(image: ImageItem, post_id: str, index: int) -> str | None:
+    if not image.url:
         return None
-    target = _safe_media_target(media, post_id, index)
+    target = _safe_image_target(image, post_id, index)
     timeout = _cfg_float('download_timeout', 120.0, 5.0)
-    if media.kind == 'video' and _url_suffix(media.url) == '.m3u8':
-        return await _download_hls(media, target, max(timeout, 120.0))
-    return await _download_file(media, target, timeout)
+    return await _download_file(image, target, timeout)
 
 
-async def _download_file(media: MediaItem, target: Path, timeout: float) -> str | None:
+async def _download_file(image: ImageItem, target: Path, timeout: float) -> str | None:
     try:
         async with httpx.AsyncClient(
             timeout=timeout,
             follow_redirects=True,
             headers={'User-Agent': USER_AGENT, 'Referer': 'https://www.kurobbs.com/'},
         ) as client:
-            response = await client.get(media.url)
+            response = await client.get(image.url)
             response.raise_for_status()
             target.write_bytes(response.content)
         return str(target.resolve())
     except Exception as exc:
-        logger.warning(f'[gs_kuro_cos] 下载媒体失败：{media.url} {exc!r}')
+        logger.warning(f'[gs_kuro_cos] 下载图片失败：{image.url} {exc!r}')
         target.unlink(missing_ok=True)
         return None
 
 
-async def _download_hls(media: MediaItem, target: Path, timeout: float) -> str | None:
-    ffmpeg = shutil.which('ffmpeg')
-    if not ffmpeg:
-        _debug('未找到 ffmpeg，无法把 HLS 视频转为 MP4')
-        return None
-    headers = f'User-Agent: {USER_AGENT}\r\nReferer: https://www.kurobbs.com/\r\n'
-    command = [ffmpeg, '-y', '-loglevel', 'error', '-headers', headers, '-i', media.url, '-c', 'copy', '-movflags', '+faststart', str(target)]
-    process: asyncio.subprocess.Process | None = None
-    try:
-        target.unlink(missing_ok=True)
-        process = await asyncio.create_subprocess_exec(
-            *command,
-            stdout=asyncio.subprocess.PIPE,
-            stderr=asyncio.subprocess.PIPE,
-            env=os.environ.copy(),
-        )
-        _, stderr = await asyncio.wait_for(process.communicate(), timeout=timeout)
-        if process.returncode == 0 and target.is_file() and target.stat().st_size > 0:
-            _debug(f'HLS 视频已转码为 MP4：{target}')
-            return str(target.resolve())
-        _debug(f"ffmpeg 转码失败 code={process.returncode} error={stderr.decode('utf-8', errors='replace')[-500:]}")
-    except asyncio.TimeoutError:
-        _debug(f'ffmpeg 转码超时 url={media.url}')
-        if process is not None:
-            process.kill()
-    except Exception as exc:
-        _debug(f'ffmpeg 转码异常 error={exc!r}')
-    target.unlink(missing_ok=True)
-    return None
+def _segment_from_local(path: str) -> Message:
+    return MessageSegment.image(Path(path))
 
 
-def _video_size_limit_bytes() -> int:
-    return int(_cfg_float('video_max_mb', 80.0, 1.0, 512.0) * 1024 * 1024)
+def _segment_from_url(url: str) -> Message:
+    return MessageSegment.image(url)
 
 
-def _segment_from_local(path: str, kind: str) -> Message | str:
-    file_path = Path(path)
-    if kind == 'image':
-        return MessageSegment.image(file_path)
-    try:
-        size = file_path.stat().st_size
-    except OSError:
-        return f'视频文件读取失败：{file_path.name}'
-    if size > _video_size_limit_bytes():
-        return f'视频文件过大，已跳过发送：{file_path.name}'
-    if _cfg_str('video_send_mode', 'video').lower() == 'file':
-        return MessageSegment.file(file_path, file_path.name)
-    return MessageSegment.video(file_path)
-
-
-def _segment_from_url(url: str, kind: str) -> Message | str:
-    if kind == 'image':
-        return MessageSegment.image(url)
-    return f'视频下载失败，请打开原帖查看：\n{url}'
-
-
-async def _component_for(media: MediaItem, post_id: str, index: int) -> tuple[Message | str, str | None]:
-    resolved = await _resolve_video(media)
-    if resolved.kind == 'image':
-        if _cfg_bool('download_images', True):
-            local_path = await _download_media(resolved, post_id, index)
-            if local_path:
-                return _segment_from_local(local_path, resolved.kind), local_path
-        if resolved.url:
-            return _segment_from_url(resolved.url, resolved.kind), None
-        return '图片解析失败，请打开原帖查看。', None
-    if _cfg_bool('download_videos', True):
-        local_path = await _download_media(resolved, post_id, index)
+async def _component_for(image: ImageItem, post_id: str, index: int) -> tuple[Message | str, str | None]:
+    if _cfg_bool('download_images', True):
+        local_path = await _download_image(image, post_id, index)
         if local_path:
-            return _segment_from_local(local_path, resolved.kind), local_path
-    if resolved.url:
-        return _segment_from_url(resolved.url, resolved.kind), None
-    return '视频解析失败，请打开原帖查看。', None
+            return _segment_from_local(local_path), local_path
+    if image.url:
+        return _segment_from_url(image.url), None
+    return '图片解析失败，请打开原帖查看。', None
 
 
 def _cleanup_local_files(paths: list[str]) -> None:
@@ -911,7 +686,7 @@ def _cleanup_local_files(paths: list[str]) -> None:
                 cleaned_dirs.add(path.parent)
                 path.unlink()
         except Exception as exc:
-            logger.warning(f'[gs_kuro_cos] 删除本地媒体失败：{path} {exc!r}')
+            logger.warning(f'[gs_kuro_cos] 删除本地缓存文件失败：{path} {exc!r}')
     for directory in cleaned_dirs:
         try:
             directory.rmdir()
@@ -921,17 +696,16 @@ def _cleanup_local_files(paths: list[str]) -> None:
 
 async def _build_messages(post: KuroPost) -> tuple[list[Any], list[str]]:
     max_media = _cfg_int('max_media_per_post', 6, 1, 20)
-    selected_media = post.media[:max_media]
-    has_video = any(_is_video_media(item) for item in selected_media)
+    selected_images = post.images[:max_media]
     text = _post_text(post)
     components: list[Message | str] = []
     local_paths: list[str] = []
-    for index, media in enumerate(selected_media, 1):
-        component, local_path = await _component_for(media, post.post_id or 'post', index)
+    for index, image in enumerate(selected_images, 1):
+        component, local_path = await _component_for(image, post.post_id or 'post', index)
         components.append(component)
         if local_path:
             local_paths.append(local_path)
-    if _cfg_bool('use_forward', True) and not has_video and components:
+    if _cfg_bool('use_forward', True) and components:
         return [MessageSegment.node([text, *components])], local_paths
     return [[text, *components]], local_paths
 
@@ -943,13 +717,9 @@ async def _load_posts(parsed: ParsedCommand) -> list[KuroPost]:
 
 
 def _empty_text(parsed: ParsedCommand) -> str:
-    if parsed.spec.video_only and parsed.keyword:
-        return f'没找到包含「{parsed.keyword}」的 {parsed.spec.label} 视频。'
-    if parsed.spec.video_only:
-        return f'没找到包含 {parsed.spec.label} 视频的库街区内容。'
     if parsed.keyword:
-        return f'没找到包含「{parsed.keyword}」的 {parsed.spec.label} 图片/视频。'
-    return f'没找到包含 {parsed.spec.label} 图片/视频的库街区内容。'
+        return f'没找到包含「{parsed.keyword}」的 {parsed.spec.label} 图片。'
+    return f'没找到包含 {parsed.spec.label} 图片的库街区内容。'
 
 
 @sv.on_regex(rf'^{COMMAND_PATTERN}$', block=True, prefix=True)
@@ -962,7 +732,7 @@ async def send_kuro_cos(bot: Bot, ev: Event) -> None:
         return
     async with FETCH_LOCK:
         posts = await _load_posts(parsed)
-        post = _select_post(posts, parsed.spec.video_only)
+        post = _select_post(posts)
         if post is None:
             await bot.send(_empty_text(parsed))
             return

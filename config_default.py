@@ -7,13 +7,12 @@ from gsuid_core.utils.plugins_config.models import (
     GsBoolConfig,
     GsFloatConfig,
     GsIntConfig,
-    GsStrConfig,
 )
 
 CONFIG_DEFAULT: Dict[str, GSC] = {
     'use_forward': GsBoolConfig(
         '图片合并转发',
-        '图片帖使用合并转发；视频帖会自动普通发送。',
+        '图片帖使用合并转发。',
         True,
     ),
     'default_page_size': GsIntConfig(
@@ -53,8 +52,8 @@ CONFIG_DEFAULT: Dict[str, GSC] = {
         max_value=10,
     ),
     'max_media_per_post': GsIntConfig(
-        '单帖媒体上限',
-        '单条帖子最多发送多少个图片或视频。',
+        '单帖图片上限',
+        '单条帖子最多发送多少张图片。',
         6,
         max_value=20,
     ),
@@ -63,32 +62,10 @@ CONFIG_DEFAULT: Dict[str, GSC] = {
         '开启后图片转为本地/base64发送。',
         True,
     ),
-    'download_videos': GsBoolConfig(
-        '下载视频发送',
-        '开启后视频下载为本地视频再发送。',
-        True,
-    ),
     'delete_cache_after_send': GsBoolConfig(
         '发送后清理缓存',
         '发送完成后删除 media_cache 临时文件。',
         True,
-    ),
-    'video_send_mode': GsStrConfig(
-        '视频发送模式',
-        'video=视频消息；file=文件消息。',
-        'video',
-    ),
-    'video_definition': GsStrConfig(
-        '视频清晰度',
-        '优先选择 HD/SD/LD/FD。',
-        'HD',
-    ),
-    'video_max_mb': GsFloatConfig(
-        '视频大小上限MB',
-        '超过上限会跳过发送，避免机器人卡死。',
-        80.0,
-        min_value=1.0,
-        max_value=512.0,
     ),
     'request_timeout': GsFloatConfig(
         '接口超时秒数',
@@ -99,7 +76,7 @@ CONFIG_DEFAULT: Dict[str, GSC] = {
     ),
     'download_timeout': GsFloatConfig(
         '下载超时秒数',
-        '下载单个图片或视频的超时时间。',
+        '下载单张图片的超时时间。',
         120.0,
         min_value=5.0,
         max_value=300.0,
@@ -111,7 +88,7 @@ CONFIG_DEFAULT: Dict[str, GSC] = {
     ),
     'debug_log': GsBoolConfig(
         '调试日志',
-        '输出接口页码、候选帖子和视频解析日志。',
+        '输出接口页码、候选帖子和过滤日志。',
         False,
     ),
 }
