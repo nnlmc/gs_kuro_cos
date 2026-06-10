@@ -12,8 +12,10 @@ from typing import Any, Iterable
 from urllib.parse import urlparse
 
 import httpx
+from PIL import Image
 
 from gsuid_core.bot import Bot
+from gsuid_core.help.utils import register_help
 from gsuid_core.logger import logger
 from gsuid_core.models import Event, Message
 from gsuid_core.segment import MessageSegment
@@ -22,14 +24,19 @@ from gsuid_core.sv import Plugins, SV
 from .kuro_cos_config import KuroCosConfig
 
 
-__version__ = '0.2.0'
+__version__ = '0.2.1'
 
 Plugins(name='gs_kuro_cos', force_prefix=['ww', 'zs'], allow_empty_prefix=False)
 sv = SV('库街区COS/同人')
 
 BASE_DIR = Path(__file__).parent
+ICON_PATH = BASE_DIR / 'ICON.png'
+HELP_IMAGE = BASE_DIR / 'cos_help.png'
 MEDIA_DIR = BASE_DIR / 'media_cache'
 MEDIA_DIR.mkdir(parents=True, exist_ok=True)
+
+with Image.open(ICON_PATH) as icon:
+    register_help('库街区COS/同人', 'wwcos帮助 / zscos帮助', icon.copy())
 
 API_BASE = 'https://api.kurobbs.com'
 USER_AGENT = (
@@ -746,3 +753,8 @@ async def send_kuro_cos(bot: Bot, ev: Event) -> None:
         finally:
             if _cfg_bool('delete_cache_after_send', True):
                 _cleanup_local_files(local_paths)
+
+
+@sv.on_fullmatch('cos帮助', block=True, prefix=True)
+async def send_cos_help(bot: Bot, ev: Event) -> None:
+    await bot.send(MessageSegment.image(HELP_IMAGE))

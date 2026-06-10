@@ -6,7 +6,7 @@
 
 <p align="center">库街区 COS / 同人搬运插件，适用于 GsCore / GsUID Core。</p>
 
-<p align="center">当前版本：v0.2.0</p>
+<p align="center">当前版本：v0.2.1</p>
 
 ## 功能
 
@@ -40,6 +40,13 @@ git clone https://github.com/nnlmc/gs_kuro_cos.git
 然后重启 GsCore。
 
 ## 命令
+
+帮助：
+
+```text
+wwcos帮助
+zscos帮助
+```
 
 鸣潮 COS：
 
