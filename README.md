@@ -8,65 +8,77 @@
   <img src="./ICON.png" width="160" alt="插件 ICON">
 </p>
 
-GSCore / GsUID 版鸣潮库街区 COS 搬运插件，按 AstrBot 版同步改写。
+GSCore / GsUID Core 版库街区 COS/同人搬运插件。
 
-功能：从鸣潮库街区 COS 板块随机获取帖子，只提取帖子正文里的 COS 图片/视频，然后由机器人发送到当前聊天。
-
-## 使用方法
-
-固定命令：
-
-```text
-鸣潮cos
-wwcos
-鸣潮cos 长离
-wwcos 长离
-鸣潮cos 守岸人
-```
-
-不带参数时随机获取 COS 板块内容；带角色名/人物名时，会调用库街区搜索接口组合搜索 `角色名 cos`、`角色名 正片` 等关键词，比随机抽帖子后搜正文更容易命中。
-
-本版保留 AstrBot 版固定命令：`鸣潮cos`、`wwcos`。群聊直接发送即可触发，无需 `/`，不再提供旧版 GScore 自定义触发词配置。
-
-## 当前策略
-
-- 只请求库街区 COS 板块：`gameId=3`、`forumId=17`、`searchType=3`；
-- `鸣潮cos` 不带参数时走随机模式：默认从 `1~80` 页里抽 `30` 页，并固定混入前段页来减少抽到空页的概率；
-- `鸣潮cos 角色名` 带参数时走搜索模式：使用 `/forum/searchPost` 组合搜索 `角色名 cos`、`角色名 正片`、`角色名 cos正片` 等关键词，并排除攻略、养成、配队、抽卡、活动等明显非 COS 结果；
-- 每页默认取 `20` 条，组合成候选池后随机挑选；
-- 如果随机页没有可用候选，会自动回退检查前段页，尽量避免直接返回“没找到”；
-- 单条帖子默认最多发送 `6` 个正文媒体；
-- 记住最近发过的帖子，降低连续重复概率；
-- 只读取帖子正文媒体字段：`imgContent`、图片列表、视频字段、正文直链；搜索模式下如果帖子正文媒体为空，会额外尝试使用帖子封面图作为兜底；
-- 命中“禁止搬运/禁止转载/禁止二传/Do not repost”等限制转载关键词时会跳过该帖子；
-- 默认下载到本地后发送，发送后自动删除本地图片/视频；
-- 默认使用合并转发发送整条帖子，可在控制台关闭。
-
-## GScore 版未移植项
-
-- `recall_after_send` / `recall_delay_seconds`：GScore 的通用发送接口不稳定暴露可撤回的消息 ID，未移植自动撤回；
-- `forward_sender_name` / `forward_sender_id`：GScore 的 `MessageSegment.node` 不支持自定义合并转发节点昵称和 QQ，未移植。
-
-## 推荐默认配置
-
-当前内置默认值偏向稳定可用：`request_rounds=30`、`random_page_max=80`、`default_page_size=20`、`search_page_size=10`、`search_rounds=3`、`max_media_per_post=6`、`request_timeout=12.0`、`download_timeout=20.0`。
-
-## 配置重点
-
-- `request_rounds`：一次随机请求多少页，越大越不容易重复；
-- `random_page_max`：随机页码上限，过大可能抽到较多空页；
-- `default_page_size`：每页取多少条帖子；
-- `max_media_per_post`：单条帖子最多发送多少个正文媒体；
-- `download_media`：是否先下载媒体再发；
-- `use_forward`：是否使用合并转发发送帖子内容，默认开启；
-- `delete_after_send`：发送后是否自动删除本地媒体；
-- `search_endpoint`：库街区帖子搜索接口，默认 `/forum/searchPost`；
-- `search_page_size`：角色搜索模式每页取多少条搜索结果；
-- `search_rounds`：角色搜索模式每个搜索词请求多少页；
-- `forum_id`：鸣潮 COS 板块 ID，默认 `17`。
-
-如果还是重复，把 `request_rounds` 和 `default_page_size` 调大。
+插件使用 GsCore 强制前缀区分游戏：`ww` 是鸣潮，`zs` 是战双。命令本体保持简短，例如 `wwcos`、`ww同人`、`zs同人`。
 
 ## 安装
 
-把 `gs_kuro_cos` 文件夹放到 GSCore 插件目录，然后重载插件或重启机器人。
+把 `gs_kuro_cos` 文件夹放到 GsCore 插件目录，重启 GsCore 或执行插件重载。
+
+视频命令需要服务器能调用 `ffmpeg`，否则 `.m3u8` 视频无法转成可发送的 MP4。Linux 可以用系统包管理器安装，Windows 可以把 `ffmpeg.exe` 放进 `PATH`。
+
+## 命令
+
+鸣潮：
+
+```text
+wwcos
+ww cos
+wwcos 长离
+wwcos视频
+ww cos视频 长离
+ww同人
+ww 同人 今汐
+ww同人视频
+ww 同人视频 椿
+```
+
+战双：
+
+```text
+zs同人
+zs 同人 露西亚
+zs同人视频
+zs 同人视频 露西亚
+```
+
+不带关键词时随机从对应板块抽取帖子。带关键词时走库街区搜索接口。
+
+## 发送策略
+
+- 图片帖默认使用合并转发。
+- 视频帖默认普通消息发送，避免合并转发视频在不同 OneBot 端兼容性不一致。
+- 图片默认下载后发送，减少直链失效问题。
+- 视频默认下载后发送；`.m3u8` 会先用 `ffmpeg` 转成 MP4。
+- 命中“禁止搬运、禁止转载、禁止二传、do not repost”等限制词的帖子会跳过。
+
+## 配置
+
+常用配置在 GsCore 控制台里改：
+
+| 配置 | 默认 | 说明 |
+| --- | --- | --- |
+| `use_forward` | `true` | 图片帖是否合并转发，视频帖不使用合并转发 |
+| `max_media_per_post` | `6` | 单帖最多发送的媒体数量 |
+| `download_images` | `true` | 图片是否下载后发送 |
+| `download_videos` | `true` | 视频是否下载后发送 |
+| `video_send_mode` | `video` | `video` 发视频消息，`file` 发文件消息 |
+| `video_definition` | `HD` | 视频清晰度优先级，可填 `HD`、`SD`、`LD`、`FD` |
+| `video_max_mb` | `80` | 视频超过该大小会跳过发送 |
+| `delete_cache_after_send` | `true` | 发送后删除 `media_cache` 临时文件 |
+| `request_rounds` | `30` | 随机模式请求页数 |
+| `random_page_max` | `80` | 随机模式页码上限 |
+| `debug_log` | `false` | 输出详细抓取日志 |
+
+一般只需要调整 `max_media_per_post`、`video_send_mode`、`video_max_mb`。如果随机重复多，再调大 `request_rounds`。
+
+## 故障排查
+
+视频解析成功但发不出去：把 `video_send_mode` 改成 `file` 测试，或调低 `video_max_mb`。
+
+日志提示找不到 `ffmpeg`：安装 `ffmpeg` 并确认命令行能直接执行 `ffmpeg`。
+
+经常提示没找到内容：开启 `debug_log` 看接口页码和候选数量，也可以增加 `request_rounds`。
+
+部分帖子没有媒体：库街区接口可能只返回封面或隐藏正文资源，插件会跳过没有正文媒体的帖子。
