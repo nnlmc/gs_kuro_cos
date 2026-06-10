@@ -21,7 +21,7 @@
 插件上架后，可在 GsCore 控制台插件市场安装，或向机器人发送：
 
 ```text
-core安装插件gs_kuro_cos
+core安装插件cos
 ```
 
 安装完成后重启 GsCore，或使用 GsCore 的插件重载功能。
