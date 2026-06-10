@@ -451,6 +451,9 @@ def _parse_command_text(text: Any) -> ParsedCommand | None:
             return ParsedCommand(spec)
         if body.startswith(f'{spec.command} '):
             return ParsedCommand(spec, _clean_text(body[len(spec.command):].strip(), 40))
+        if body.startswith(spec.command) and len(body) > len(spec.command):
+            keyword = body[len(spec.command):]
+            return ParsedCommand(spec, _clean_text(keyword, 40))
     return None
 
 
@@ -558,6 +561,21 @@ async def _fetch_random_posts(spec: CommandSpec) -> list[KuroPost]:
                 if posts:
                     break
     return posts or recent
+
+
+def _make_search_keywords(keyword: str, suffixes: tuple[str, ...]) -> tuple[str, ...]:
+    if not suffixes or suffixes == ('',):
+        return (keyword,)
+    result: list[str] = []
+    seen: set[str] = set()
+    for suffix in suffixes:
+        kw = f"{keyword} {suffix}".strip()
+        if kw and kw not in seen:
+            seen.add(kw)
+            result.append(kw)
+    if keyword not in seen:
+        result.append(keyword)
+    return tuple(result)
 
 
 async def _fetch_search_posts(spec: CommandSpec, keyword: str) -> list[KuroPost]:
