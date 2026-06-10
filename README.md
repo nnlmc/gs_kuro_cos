@@ -6,7 +6,7 @@
 
 <p align="center">库街区 COS / 同人搬运插件，适用于 GsCore / GsUID Core。</p>
 
-<p align="center">当前版本：v0.2.1</p>
+<p align="center">当前版本：v0.2.2</p>
 
 ## 功能
 

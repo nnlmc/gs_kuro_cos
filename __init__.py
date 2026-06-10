@@ -24,7 +24,7 @@ from gsuid_core.sv import Plugins, SV
 from .kuro_cos_config import KuroCosConfig
 
 
-__version__ = '0.2.1'
+__version__ = '0.2.2'
 
 Plugins(name='gs_kuro_cos', force_prefix=['ww', 'zs'], allow_empty_prefix=False)
 sv = SV('库街区COS/同人')
@@ -36,7 +36,7 @@ MEDIA_DIR = BASE_DIR / 'media_cache'
 MEDIA_DIR.mkdir(parents=True, exist_ok=True)
 
 with Image.open(ICON_PATH) as icon:
-    register_help('库街区COS/同人', 'wwcos帮助 / zscos帮助', icon.copy())
+    register_help('库街区COS/同人', 'wwcos帮助 / zscos帮助', icon.convert('RGBA'))
 
 API_BASE = 'https://api.kurobbs.com'
 USER_AGENT = (
