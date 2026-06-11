@@ -1,10 +1,10 @@
-# gs_kuro_cos
+# nnlcos
 
 <p align="center">
-  <img src="./ICON.png" width="160" alt="gs_kuro_cos ICON">
+  <img src="./ICON.png" width="160" alt="nnlcos ICON">
 </p>
 
-<p align="center">库街区 COS / 同人搬运插件，适用于 GsCore / GsUID Core。</p>
+<p align="center">nnlcos COS / 同人搬运插件，适用于 GsCore / GsUID Core。</p>
 
 <p align="center">当前版本：v0.2.4</p>
 
@@ -36,7 +36,7 @@ core安装插件cos
 
 ```bash
 cd /path/to/gsuid_core/gsuid_core/plugins
-git clone https://github.com/nnlmc/gs_kuro_cos.git
+git clone https://github.com/nnlmc/nnlcos.git
 ```
 
 然后重启 GsCore。
