@@ -10,7 +10,7 @@ BASE_DIR = Path(__file__).parent
 CONFIG_PATH = BASE_DIR / 'config.json'
 
 KuroCosConfig = StringConfig(
-    'nnlcos',
+    'gs_kuro_cos',
     CONFIG_PATH,
     CONFIG_DEFAULT,
 )

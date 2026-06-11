@@ -26,8 +26,8 @@ from .kuro_cos_config import KuroCosConfig
 
 __version__ = '0.2.4'
 
-Plugins(name='nnlcos', force_prefix=['ww', 'zs'], allow_empty_prefix=False)
-sv = SV('nnlcos')
+Plugins(name='gs_kuro_cos', force_prefix=['ww', 'zs'], allow_empty_prefix=False)
+sv = SV('库街区COS/同人')
 
 BASE_DIR = Path(__file__).parent
 ICON_PATH = BASE_DIR / 'ICON.png'
@@ -36,7 +36,7 @@ MEDIA_DIR = BASE_DIR / 'media_cache'
 MEDIA_DIR.mkdir(parents=True, exist_ok=True)
 
 with Image.open(ICON_PATH) as icon:
-    register_help('nnlcos', 'wwcos帮助 / zscos帮助', icon.convert('RGBA'))
+    register_help('库街区COS/同人', 'wwcos帮助 / zscos帮助', icon.convert('RGBA'))
 
 API_BASE = 'https://api.kurobbs.com'
 USER_AGENT = (
@@ -175,7 +175,7 @@ def _cfg_float(key: str, default: float, minimum: float | None = None, maximum: 
 
 def _debug(message: str) -> None:
     if _cfg_bool('debug_log', False):
-        logger.info(f'[nnlcos] {message}')
+        logger.info(f'[gs_kuro_cos] {message}')
 
 
 def _clean_text(value: Any, limit: int = 120) -> str:
@@ -661,7 +661,7 @@ async def _download_file(image: ImageItem, target: Path, timeout: float) -> str 
             target.write_bytes(response.content)
         return str(target.resolve())
     except Exception as exc:
-        logger.warning(f'[nnlcos] 下载图片失败：{image.url} {exc!r}')
+        logger.warning(f'[gs_kuro_cos] 下载图片失败：{image.url} {exc!r}')
         target.unlink(missing_ok=True)
         return None
 
@@ -693,7 +693,7 @@ def _cleanup_local_files(paths: list[str]) -> None:
                 cleaned_dirs.add(path.parent)
                 path.unlink()
         except Exception as exc:
-            logger.warning(f'[nnlcos] 删除本地缓存文件失败：{path} {exc!r}')
+            logger.warning(f'[gs_kuro_cos] 删除本地缓存文件失败：{path} {exc!r}')
     for directory in cleaned_dirs:
         try:
             directory.rmdir()
