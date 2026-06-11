@@ -24,7 +24,7 @@ from gsuid_core.sv import Plugins, SV
 from .kuro_cos_config import KuroCosConfig
 
 
-__version__ = '0.2.3'
+__version__ = '0.2.4'
 
 Plugins(name='gs_kuro_cos', force_prefix=['ww', 'zs'], allow_empty_prefix=False)
 sv = SV('库街区COS/同人')
@@ -123,7 +123,7 @@ COMMANDS: tuple[CommandSpec, ...] = (
     CommandSpec('zs', '同人', '战双同人', 5, 2),
 )
 COMMANDS_BY_LENGTH = tuple(sorted(COMMANDS, key=lambda item: len(item.command), reverse=True))
-COMMAND_PATTERN = r'\s*(?:cos|同人)(?:\s+.+)?'
+COMMAND_PATTERN = r'\s*(?:ww\s*(?:cos|同人)|zs\s*(?:cos|同人))(?:\s+.+)?'
 
 
 def _cfg(key: str, default: Any = None) -> Any:
@@ -729,7 +729,7 @@ def _empty_text(parsed: ParsedCommand) -> str:
     return f'没找到包含 {parsed.spec.label} 图片的库街区内容。'
 
 
-@sv.on_regex(rf'^{COMMAND_PATTERN}$', block=True, prefix=True)
+@sv.on_regex(rf'^{COMMAND_PATTERN}$', block=True, prefix=False)
 async def send_kuro_cos(bot: Bot, ev: Event) -> None:
     parsed = _parse_command_text(getattr(ev, 'raw_text', '') or getattr(ev, 'text', ''))
     if parsed is None:

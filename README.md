@@ -6,7 +6,7 @@
 
 <p align="center">库街区 COS / 同人搬运插件，适用于 GsCore / GsUID Core。</p>
 
-<p align="center">当前版本：v0.2.3</p>
+<p align="center">当前版本：v0.2.4</p>
 
 ## 功能
 
@@ -28,6 +28,8 @@ core安装插件cos
 
 安装完成后重启 GsCore，或使用 GsCore 的插件重载功能。
 
+插件依赖已写入 `pyproject.toml`，插件市场或新版 GsCore 会自动检查安装。
+
 ### 手动安装
 
 进入 GsCore 插件目录：
@@ -38,6 +40,12 @@ git clone https://github.com/nnlmc/gs_kuro_cos.git
 ```
 
 然后重启 GsCore。
+
+如果你的 GsCore 版本不会自动处理插件依赖，请在同一 Python 环境中手动安装：
+
+```bash
+pip install "httpx>=0.24.0" "pillow>=10.0.0"
+```
 
 ## 命令
 

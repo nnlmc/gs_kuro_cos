@@ -1,0 +1,10 @@
+[project]
+name = "gs-kuro-cos"
+version = "0.2.4"
+description = "GsCore 库街区 COS / 同人搬运插件"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+    "httpx>=0.24.0",
+    "pillow>=10.0.0",
+]
