@@ -8,6 +8,10 @@
 
 <p align="center">当前版本：v0.2.4</p>
 
+<p align="center">
+  <a href="https://github.com/nnlmc/gs_kuro_cos">GitHub</a> ｜ <a href="https://cnb.cool/nnlmc/gs_kuro_cos">CNB</a>
+</p>
+
 ## 功能
 
 - 随机获取库街区鸣潮 COS、鸣潮同人、战双同人帖子。
