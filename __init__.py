@@ -24,19 +24,18 @@ from gsuid_core.sv import Plugins, SV
 from .kuro_cos_config import KuroCosConfig
 
 
-__version__ = '0.2.4'
+__version__ = '0.2.5'
 
-Plugins(name='gs_kuro_cos', force_prefix=['ww', 'zs'], allow_empty_prefix=False)
+Plugins(name='gs_kuro_cos', force_prefix=['ww'], allow_empty_prefix=False)
 sv = SV('库街区COS/同人')
 
 BASE_DIR = Path(__file__).parent
 ICON_PATH = BASE_DIR / 'ICON.png'
-HELP_IMAGE = BASE_DIR / 'cos_help.png'
 MEDIA_DIR = BASE_DIR / 'media_cache'
 MEDIA_DIR.mkdir(parents=True, exist_ok=True)
 
 with Image.open(ICON_PATH) as icon:
-    register_help('库街区COS/同人', 'wwcos帮助 / zscos帮助', icon.convert('RGBA'))
+    register_help('库街区COS/同人', 'wwcos帮助', icon.convert('RGBA'))
 
 API_BASE = 'https://api.kurobbs.com'
 USER_AGENT = (
@@ -102,7 +101,6 @@ class KuroPost:
 
 @dataclass(frozen=True, slots=True)
 class CommandSpec:
-    prefix: str
     command: str
     label: str
     forum_id: int
@@ -111,19 +109,11 @@ class CommandSpec:
     search_suffixes: tuple[str, ...] = ()
 
 
-@dataclass(frozen=True, slots=True)
-class ParsedCommand:
-    spec: CommandSpec
-    keyword: str = ''
-
-
 COMMANDS: tuple[CommandSpec, ...] = (
-    CommandSpec('ww', 'cos', '鸣潮 COS', 17, 3, True, SEARCH_KEYWORD_SUFFIXES),
-    CommandSpec('ww', '同人', '鸣潮同人', 11, 3),
-    CommandSpec('zs', '同人', '战双同人', 5, 2),
+    CommandSpec('cos', '鸣潮 COS', 17, 3, True, SEARCH_KEYWORD_SUFFIXES),
+    CommandSpec('同人', '鸣潮同人', 11, 3),
 )
-COMMANDS_BY_LENGTH = tuple(sorted(COMMANDS, key=lambda item: len(item.command), reverse=True))
-COMMAND_PATTERN = r'\s*(?:ww\s*(?:cos|同人)|zs\s*(?:cos|同人))(?:\s+.+)?'
+COMMANDS_BY_NAME = {spec.command: spec for spec in COMMANDS}
 
 
 def _cfg(key: str, default: Any = None) -> Any:
@@ -360,8 +350,7 @@ def _post_from_node(node: dict[str, Any], spec: CommandSpec, allow_cover_fallbac
         images = _extract_cover_images(node)
     if not images:
         return None
-    game_path = 'pns' if spec.game_id == 2 else 'mc'
-    url = f'https://www.kurobbs.com/{game_path}/post/{post_id}' if post_id else 'https://www.kurobbs.com/'
+    url = f'https://www.kurobbs.com/mc/post/{post_id}' if post_id else 'https://www.kurobbs.com/'
     return KuroPost(post_id, title, summary, author, url, images, spec.label)
 
 
@@ -379,47 +368,6 @@ def _extract_post_list(payload: Any) -> list[dict[str, Any]]:
                 if key in current:
                     queue.append(current[key])
     return []
-
-
-def _split_prefix_and_body(text: Any) -> tuple[str, str]:
-    message = re.sub(r'\s+', ' ', str(text or '')).strip()
-    for prefix in ('ww', 'zs'):
-        if message == prefix:
-            return prefix, ''
-        if message.startswith(prefix + ' '):
-            return prefix, message[len(prefix):].strip()
-        if message.startswith(prefix):
-            return prefix, message[len(prefix):].strip()
-    return '', message
-
-
-def _parse_command_text(text: Any) -> ParsedCommand | None:
-    prefix, body = _split_prefix_and_body(text)
-    if not prefix or not body:
-        return None
-    for spec in COMMANDS_BY_LENGTH:
-        if spec.prefix != prefix:
-            continue
-        if body == spec.command:
-            return ParsedCommand(spec)
-        if body.startswith(f'{spec.command} '):
-            return ParsedCommand(spec, _clean_text(body[len(spec.command):].strip(), 40))
-        if body.startswith(spec.command) and len(body) > len(spec.command):
-            keyword = body[len(spec.command):]
-            return ParsedCommand(spec, _clean_text(keyword, 40))
-    return None
-
-
-def _unknown_command_text(text: Any) -> str | None:
-    prefix, body = _split_prefix_and_body(text)
-    if not prefix or not body:
-        return None
-    command = body.split(' ', 1)[0]
-    if prefix == 'zs' and command.startswith('cos'):
-        return '战双前缀 zs 目前支持：zs同人。'
-    if prefix == 'ww' and command.startswith(('cos', '同人')):
-        return '鸣潮前缀 ww 支持：wwcos、ww同人。'
-    return None
 
 
 def _headers(version: str = '2.4.4') -> dict[str, str]:
@@ -717,31 +665,43 @@ async def _build_messages(post: KuroPost) -> tuple[list[Any], list[str]]:
     return [[text, *components]], local_paths
 
 
-async def _load_posts(parsed: ParsedCommand) -> list[KuroPost]:
-    if parsed.keyword:
-        return await _fetch_search_posts(parsed.spec, parsed.keyword)
-    return await _fetch_random_posts(parsed.spec)
+async def _load_posts(spec: CommandSpec, keyword: str) -> list[KuroPost]:
+    if keyword:
+        return await _fetch_search_posts(spec, keyword)
+    return await _fetch_random_posts(spec)
 
 
-def _empty_text(parsed: ParsedCommand) -> str:
-    if parsed.keyword:
-        return f'没找到包含「{parsed.keyword}」的 {parsed.spec.label} 图片。'
-    return f'没找到包含 {parsed.spec.label} 图片的库街区内容。'
+def _empty_text(spec: CommandSpec, keyword: str) -> str:
+    if keyword:
+        return f'没找到包含「{keyword}」的 {spec.label} 图片。'
+    return f'没找到包含 {spec.label} 图片的库街区内容。'
 
 
-@sv.on_regex(rf'^{COMMAND_PATTERN}$', block=True, prefix=False)
-async def send_kuro_cos(bot: Bot, ev: Event) -> None:
-    parsed = _parse_command_text(getattr(ev, 'raw_text', '') or getattr(ev, 'text', ''))
-    if parsed is None:
-        hint = _unknown_command_text(getattr(ev, 'raw_text', '') or getattr(ev, 'text', ''))
-        if hint:
-            await bot.send(hint)
+def _help_text() -> str:
+    return (
+        '库街区鸣潮 COS / 同人\n'
+        '\n'
+        '命令：\n'
+        'wwcos：随机鸣潮 COS\n'
+        'wwcos 长离：搜索长离相关 COS\n'
+        'ww同人：随机鸣潮同人\n'
+        'ww同人 今汐：搜索今汐相关同人\n'
+        '\n'
+        '前缀说明：默认前缀是 ww，可在 GsCore 控制台把本插件强制前缀改成别的值。'
+        '例如改成 fb 后，命令就是 fbcos、fb同人、fbcos帮助。'
+    )
+
+
+async def _send_kuro_post(bot: Bot, spec: CommandSpec, keyword: str) -> None:
+    keyword = _clean_text(keyword, 40)
+    if keyword.lower() in {'帮助', 'help'}:
+        await bot.send(_help_text())
         return
     async with FETCH_LOCK:
-        posts = await _load_posts(parsed)
+        posts = await _load_posts(spec, keyword)
         post = _select_post(posts)
         if post is None:
-            await bot.send(_empty_text(parsed))
+            await bot.send(_empty_text(spec, keyword))
             return
         _remember_post(post)
         messages, local_paths = await _build_messages(post)
@@ -755,6 +715,16 @@ async def send_kuro_cos(bot: Bot, ev: Event) -> None:
                 _cleanup_local_files(local_paths)
 
 
+@sv.on_prefix('cos', block=True, prefix=True)
+async def send_kuro_cos(bot: Bot, ev: Event) -> None:
+    await _send_kuro_post(bot, COMMANDS_BY_NAME['cos'], str(ev.text or '').strip())
+
+
+@sv.on_prefix('同人', block=True, prefix=True)
+async def send_kuro_fanart(bot: Bot, ev: Event) -> None:
+    await _send_kuro_post(bot, COMMANDS_BY_NAME['同人'], str(ev.text or '').strip())
+
+
 @sv.on_fullmatch('cos帮助', block=True, prefix=True)
 async def send_cos_help(bot: Bot, ev: Event) -> None:
-    await bot.send(MessageSegment.image(HELP_IMAGE))
+    await bot.send(_help_text())

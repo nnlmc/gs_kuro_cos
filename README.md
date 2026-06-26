@@ -3,7 +3,7 @@
 <p align="center">
   <a href="https://github.com/nnlmc/gs_kuro_cos"><img src="ICON.png" width="160" alt="gs_kuro_cos ICON"></a>
 </p>
-<h1 align="center">gs_kuro_cos v0.2.4</h1>
+<h1 align="center">gs_kuro_cos v0.2.5</h1>
 <h4 align="center">库街区 COS / 同人搬运插件，适用于 GsCore / GsUID Core</h4>
 <div align="center">
   <a href="https://github.com/nnlmc/gs_kuro_cos" target="_blank">GitHub</a> &nbsp; · &nbsp;
@@ -34,11 +34,11 @@
 
 ## 丨功能
 
-- 随机获取库街区鸣潮 COS、鸣潮同人、战双同人帖子
+- 随机获取库街区鸣潮 COS、鸣潮同人帖子
 - 支持关键词搜索，例如指定角色名或作品关键词
 - 支持图片发送，图片默认下载后发送以减少直链失效问题
 - 自动跳过带有禁止搬运、禁止转载、禁止二传等限制说明的帖子
-- 使用 GsCore 强制前缀区分游戏：`ww` 为鸣潮，`zs` 为战双
+- 默认使用 GsCore 强制前缀 `ww`；如需改成 `fb`，在控制台修改本插件强制前缀即可
 
 ## 丨命令
 
@@ -46,7 +46,6 @@
 
 ```text
 wwcos帮助
-zscos帮助
 ```
 
 鸣潮 COS：
@@ -63,22 +62,16 @@ ww同人
 ww同人 今汐
 ```
 
-战双同人：
-
-```text
-zs同人
-zs同人 露西亚
-```
-
 命令也兼容前缀和命令之间带空格的写法，例如：
 
 ```text
 ww cos
 ww 同人 今汐
-zs 同人 露西亚
 ```
 
 不带关键词时，插件会从对应分区随机抽取帖子；带关键词时，会优先使用库街区搜索接口查找相关内容。
+
+前缀说明：默认前缀是 `ww`。如果在 GsCore 控制台把本插件强制前缀改为 `fb`，命令会变为 `fbcos`、`fb同人`、`fbcos帮助`。
 
 ## 丨常用配置
 
