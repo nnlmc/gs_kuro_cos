@@ -1,57 +1,44 @@
 # gs_kuro_cos
 
 <p align="center">
-  <img src="./ICON.png" width="160" alt="gs_kuro_cos ICON">
+  <a href="https://github.com/nnlmc/gs_kuro_cos"><img src="ICON.png" width="160" alt="gs_kuro_cos ICON"></a>
 </p>
+<h1 align="center">gs_kuro_cos v0.2.4</h1>
+<h4 align="center">库街区 COS / 同人搬运插件，适用于 GsCore / GsUID Core</h4>
+<div align="center">
+  <a href="https://github.com/nnlmc/gs_kuro_cos" target="_blank">GitHub</a> &nbsp; · &nbsp;
+  <a href="https://cnb.cool/nnlmc/gs_kuro_cos" target="_blank">CNB</a> &nbsp; · &nbsp;
+  <a href="https://github.com/Genshin-bots/gsuid_core" target="_blank">gsuid_core</a>
+</div>
 
-<p align="center">库街区 COS / 同人搬运插件，适用于 GsCore / GsUID Core。</p>
+## 丨安装提醒
 
-<p align="center">当前版本：v0.2.4</p>
+> **注意：该插件为 [早柚核心(gsuid_core)](https://github.com/Genshin-bots/gsuid_core) 的扩展，需要先安装好 GsCore 才能使用**
+>
+> **本插件已上架 GsCore 插件商店，可直接对 bot 发送 `core安装插件cos`，然后重启 Core 以应用安装**
+>
+> **如果从 CNB 拉取，需要手动克隆到 GsCore 插件目录后重启 Core：**
+>
+> ```bash
+> cd /path/to/gsuid_core/gsuid_core/plugins
+> git clone https://cnb.cool/nnlmc/gs_kuro_cos.git
+> ```
+>
+> 插件依赖已写入 `pyproject.toml`，插件市场或新版 GsCore 会自动检查安装；如果你的 GsCore 版本不会自动处理依赖，请在同一 Python 环境中手动安装：
+>
+> ```bash
+> pip install "httpx>=0.24.0" "pillow>=10.0.0"
+> ```
 
-<p align="center">
-  <a href="https://github.com/nnlmc/gs_kuro_cos">GitHub</a> ｜ <a href="https://cnb.cool/nnlmc/gs_kuro_cos">CNB</a>
-</p>
+## 丨功能
 
-## 功能
+- 随机获取库街区鸣潮 COS、鸣潮同人、战双同人帖子
+- 支持关键词搜索，例如指定角色名或作品关键词
+- 支持图片发送，图片默认下载后发送以减少直链失效问题
+- 自动跳过带有禁止搬运、禁止转载、禁止二传等限制说明的帖子
+- 使用 GsCore 强制前缀区分游戏：`ww` 为鸣潮，`zs` 为战双
 
-- 随机获取库街区鸣潮 COS、鸣潮同人、战双同人帖子。
-- 支持关键词搜索，例如指定角色名或作品关键词。
-- 支持图片发送，图片默认下载后发送以减少直链失效问题。
-- 自动跳过带有禁止搬运、禁止转载、禁止二传等限制说明的帖子。
-- 使用 GsCore 强制前缀区分游戏：`ww` 为鸣潮，`zs` 为战双。
-
-## 安装
-
-### 插件市场安装
-
-插件上架后，可在 GsCore 控制台插件市场安装，或向机器人发送：
-
-```text
-core安装插件cos
-```
-
-安装完成后重启 GsCore，或使用 GsCore 的插件重载功能。
-
-插件依赖已写入 `pyproject.toml`，插件市场或新版 GsCore 会自动检查安装。
-
-### 手动安装
-
-进入 GsCore 插件目录：
-
-```bash
-cd /path/to/gsuid_core/gsuid_core/plugins
-git clone https://github.com/nnlmc/gs_kuro_cos.git
-```
-
-然后重启 GsCore。
-
-如果你的 GsCore 版本不会自动处理插件依赖，请在同一 Python 环境中手动安装：
-
-```bash
-pip install "httpx>=0.24.0" "pillow>=10.0.0"
-```
-
-## 命令
+## 丨命令
 
 帮助：
 
@@ -91,7 +78,7 @@ zs 同人 露西亚
 
 不带关键词时，插件会从对应分区随机抽取帖子；带关键词时，会优先使用库街区搜索接口查找相关内容。
 
-## 常用配置
+## 丨常用配置
 
 配置项可在 GsCore 控制台中修改。一般用户只需要关注下面几项：
 
@@ -104,16 +91,16 @@ zs 同人 露西亚
 
 高级抓取相关配置保持默认即可。随机内容重复较多时，可以适当调大 `request_rounds` 或 `random_page_max`。
 
-## 发送规则
-
 图片默认下载后发送，减少图片直链失效导致的发送失败。
 
-## 故障排查
+## 丨故障排查
 
 经常提示没有找到内容：开启 `debug_log` 查看接口页码、候选帖子数量和过滤原因。
 
 部分帖子被跳过：帖子可能没有正文图片，或正文包含禁止搬运、禁止转载、禁止二传等限制词。
 
-## 开源协议
+## 丨其他
 
-本项目采用 **GNU General Public License v3.0（GPLv3）** 开源。你可以使用、修改和分发，但必须保留许可证与版权声明；分发修改版时，需要按 GPLv3 继续开放对应源码。
+- 本项目仅供学习使用，请勿用于商业用途
+- 本项目采用 **GNU General Public License v3.0（GPLv3）** 开源。你可以使用、修改和分发，但必须保留许可证与版权声明；分发修改版时，需要按 GPLv3 继续开放对应源码
+- [GPL-3.0 License](LICENSE)
