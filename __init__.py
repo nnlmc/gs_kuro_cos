@@ -715,12 +715,12 @@ async def _send_kuro_post(bot: Bot, spec: CommandSpec, keyword: str) -> None:
                 _cleanup_local_files(local_paths)
 
 
-@sv.on_prefix('cos', block=True, prefix=True)
+@sv.on_command('cos', block=True, prefix=True)
 async def send_kuro_cos(bot: Bot, ev: Event) -> None:
     await _send_kuro_post(bot, COMMANDS_BY_NAME['cos'], str(ev.text or '').strip())
 
 
-@sv.on_prefix('同人', block=True, prefix=True)
+@sv.on_command('同人', block=True, prefix=True)
 async def send_kuro_fanart(bot: Bot, ev: Event) -> None:
     await _send_kuro_post(bot, COMMANDS_BY_NAME['同人'], str(ev.text or '').strip())
 
